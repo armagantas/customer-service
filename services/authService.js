@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const userService = require("./userService");
+const verificationService = require("./verificationService");
 
 /**
  * Register a new user
@@ -17,6 +18,9 @@ const registerUser = async (userData, addressData) => {
       { email, password, firstName, lastName },
       addressData
     );
+
+    // Create verification and send email
+    await verificationService.createVerification(user._id, email);
 
     // Remove password from response
     const userResponse = user.toObject();
@@ -40,6 +44,7 @@ const loginUser = async (email, password) => {
     const user = await User.findOne({ email })
       .populate("addresses")
       .populate("defaultAddress");
+
     if (!user) {
       throw new Error("Invalid credentials");
     }
@@ -70,7 +75,69 @@ const loginUser = async (email, password) => {
   }
 };
 
+/**
+ * Verify user email with verification code
+ * @param {String} userId - User ID
+ * @param {String} verificationCode - Verification code
+ * @returns {Promise<Object>} - User data with token
+ */
+const verifyEmail = async (userId, verificationCode) => {
+  try {
+    // Verify the code
+    const verified = await verificationService.verifyEmail(
+      userId,
+      verificationCode
+    );
+
+    if (!verified) {
+      throw new Error("Email verification failed");
+    }
+
+    // Get the updated user
+    const user = await User.findById(userId)
+      .populate("addresses")
+      .populate("defaultAddress");
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET || "your-secret-key",
+      { expiresIn: "30d" }
+    );
+
+    // Remove password from response
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    return {
+      ...userResponse,
+      token,
+    };
+  } catch (error) {
+    throw new Error(`Verification error: ${error.message}`);
+  }
+};
+
+/**
+ * Resend verification code
+ * @param {String} userId - User ID
+ * @returns {Promise<Object>} - Verification data
+ */
+const resendVerificationCode = async (userId) => {
+  try {
+    return await verificationService.resendVerificationCode(userId);
+  } catch (error) {
+    throw new Error(`Resend verification error: ${error.message}`);
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
+  verifyEmail,
+  resendVerificationCode,
 };

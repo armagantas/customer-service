@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    username: {
+      type: String,
+      unique: true,
+    },
     addresses: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -41,7 +45,15 @@ const userSchema = new mongoose.Schema(
     },
     isVerified: {
       type: Boolean,
-      default: true,
+      default: false,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
@@ -49,7 +61,13 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash password before saving
+userSchema.pre("save", function (next) {
+  if (!this.username) {
+    this.username = this.email.split("@")[0];
+  }
+  next();
+});
+
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
